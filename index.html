@@ -1,1 +1,1183 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MBMP · Management Command Center</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: #060b14;
+  color: #e2e8f0;
+  display: flex;
+  height: 100vh;
+}
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #0f172a; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: #0a1628;
+  border-right: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  transition: width .3s cubic-bezier(.4,0,.2,1), min-width .3s;
+  overflow: hidden;
+  z-index: 50;
+}
+#sidebar.collapsed { width: 56px; min-width: 56px; }
+#sidebar.collapsed .sb-label,
+#sidebar.collapsed .sb-section-title,
+#sidebar.collapsed .sb-arrow { display: none !important; }
+#sidebar.collapsed .sb-item { justify-content: center; padding: 10px 0; }
+#sidebar.collapsed .sb-logo-text { display: none; }
+#sidebar.collapsed #sidebarToggleBtn { justify-content: center; }
+
+.sb-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; border-radius: 8px; margin: 1px 6px;
+  font-size: 13px; font-weight: 600; color: #94a3b8;
+  cursor: pointer; transition: all .18s; white-space: nowrap;
+}
+.sb-item:hover { background: #1e293b; color: #e2e8f0; }
+.sb-item.active { background: #1e3a5f; color: #60a5fa; }
+.sb-item svg { width: 16px; height: 16px; shrink: 0; flex-shrink: 0; }
+.sb-section-title {
+  font-size: 10px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: #334155;
+  padding: 14px 18px 4px; white-space: nowrap;
+}
+
+/* ── Main ── */
+#main {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; min-width: 0;
+}
+
+/* ── Top bar ── */
+#topBar {
+  background: #0a1628;
+  border-bottom: 1px solid #1e293b;
+  padding: 0 16px;
+  height: 54px;
+  display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ── Panel grid ── */
+#panelGrid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  padding: 6px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.panel {
+  background: #0d1b2e;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; gap: 8px;
+  background: #0a1628;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+.panel-title {
+  font-size: 12px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .08em;
+  display: flex; align-items: center; gap: 8px;
+  white-space: nowrap;
+}
+.panel-body {
+  flex: 1; overflow: auto; min-height: 0;
+}
+
+/* ── Cell colours (solid, LED-optimised) ── */
+.c-pass  { background: #166534; color: #bbf7d0; }
+.c-warn  { background: #92400e; color: #fef3c7; }
+.c-crit  { background: #7f1d1d; color: #fecaca; }
+.c-zero  { background: #0f172a; color: #334155; }
+.c-total { background: #1e3a5f; color: #93c5fd; }
+
+/* ── Matrix table ── */
+.matrix-table { width: 100%; border-collapse: collapse; }
+.matrix-table th {
+  position: sticky; top: 0; z-index: 10;
+  background: #060e1c; color: #64748b;
+  font-size: 11px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .07em;
+  padding: 6px 8px; white-space: nowrap;
+  border-bottom: 2px solid #1e293b;
+  text-align: center;
+}
+.matrix-table th.stage-th {
+  position: sticky; left: 0; z-index: 20;
+  background: #060e1c; text-align: left; min-width: 160px;
+}
+.matrix-table th.total-th {
+  position: sticky; left: 160px; z-index: 20;
+  background: #060e1c; min-width: 110px;
+  box-shadow: 3px 0 8px rgba(0,0,0,.4);
+}
+.matrix-table td {
+  border: 1px solid #0f172a;
+  text-align: center;
+  font-size: 13px; font-weight: 700;
+  padding: 0; min-width: 80px;
+}
+.matrix-table td.stage-td {
+  position: sticky; left: 0; z-index: 5;
+  background: #0d1b2e;
+  text-align: left;
+  font-size: 12px; font-weight: 700; color: #cbd5e1;
+  padding: 6px 10px;
+  border-left: 3px solid transparent;
+  white-space: nowrap;
+}
+.matrix-table td.total-td {
+  position: sticky; left: 160px; z-index: 5;
+  background: #1e3a5f;
+  box-shadow: 3px 0 8px rgba(0,0,0,.3);
+  min-width: 110px;
+}
+.cell-inner { padding: 5px 4px; line-height: 1.2; }
+.cell-pass-num { font-size: 15px; font-weight: 900; }
+.cell-fail-num { font-size: 10px; font-weight: 700; opacity: .85; margin-top: 1px; }
+.current-col { box-shadow: inset 0 0 0 2px #3b82f6 !important; }
+.current-th  { background: #1d4ed8 !important; color: #fff !important; }
+
+/* ── Quality table ── */
+.q-table { width: 100%; border-collapse: collapse; }
+.q-table th {
+  position: sticky; top: 0; background: #060e1c;
+  font-size: 11px; font-weight: 800; color: #64748b;
+  text-transform: uppercase; letter-spacing: .07em;
+  padding: 7px 10px; text-align: right;
+  border-bottom: 2px solid #1e293b; white-space: nowrap;
+}
+.q-table th:first-child { text-align: left; }
+.q-table td {
+  padding: 7px 10px; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid #0f172a; text-align: right;
+}
+.q-table td:first-child { text-align: left; color: #cbd5e1; font-weight: 700; }
+.q-table tr:hover td { background: #131f35; }
+.fpy-high  { color: #4ade80; }
+.fpy-mid   { color: #fbbf24; }
+.fpy-low   { color: #f87171; }
+
+/* ── WIP table ── */
+.wip-table { width: 100%; border-collapse: collapse; }
+.wip-table th {
+  position: sticky; top: 0; background: #060e1c;
+  font-size: 11px; font-weight: 800; color: #64748b;
+  text-transform: uppercase; letter-spacing: .07em;
+  padding: 7px 10px; text-align: right;
+  border-bottom: 2px solid #1e293b; white-space: nowrap;
+}
+.wip-table th:first-child { text-align: left; }
+.wip-table td {
+  padding: 7px 10px; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid #0f172a; text-align: right; color: #94a3b8;
+}
+.wip-table td:first-child { text-align: left; color: #cbd5e1; font-weight: 700; }
+.wip-table tr:hover td { background: #131f35; }
+.wip-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 22px; border-radius: 6px;
+  font-size: 12px; font-weight: 900; padding: 0 6px;
+}
+
+/* ── Buttons ── */
+.btn-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #1e293b; border: 1px solid #334155;
+  color: #94a3b8; font-size: 11px; font-weight: 700;
+  padding: 5px 12px; border-radius: 8px; cursor: pointer;
+  transition: all .18s; white-space: nowrap;
+}
+.btn-pill:hover { background: #263548; color: #e2e8f0; border-color: #475569; }
+.btn-pill.active { background: #1d4ed8; border-color: #3b82f6; color: #fff; }
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 7px;
+  background: #1e293b; border: 1px solid #334155;
+  color: #94a3b8; cursor: pointer; transition: all .18s; flex-shrink: 0;
+}
+.btn-icon:hover { background: #263548; color: #e2e8f0; }
+.btn-icon svg { width: 14px; height: 14px; }
+
+/* ── Select / Input ── */
+.ctrl-select, .ctrl-input {
+  background: #0f172a; border: 1px solid #334155;
+  color: #e2e8f0; font-size: 12px; font-weight: 600;
+  padding: 5px 10px; border-radius: 8px; outline: none;
+  transition: border-color .18s; font-family: inherit;
+}
+.ctrl-select:focus, .ctrl-input:focus { border-color: #3b82f6; }
+.ctrl-input { width: 80px; }
+
+/* ── Panel filter bar ── */
+.pf-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 5px 10px; background: #060e1c;
+  border-bottom: 1px solid #1e293b; flex-shrink: 0;
+}
+.pf-label {
+  font-size: 10px; font-weight: 800; color: #475569;
+  text-transform: uppercase; letter-spacing: .08em; white-space: nowrap;
+}
+
+/* ── KPI badge ── */
+.kpi-badge {
+  display: flex; flex-direction: column; align-items: center;
+  background: #0f172a; border: 1px solid #1e293b;
+  border-radius: 8px; padding: 5px 12px; min-width: 80px;
+}
+.kpi-badge .kv { font-size: 18px; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
+.kpi-badge .kl { font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .07em; margin-top: 1px; }
+
+/* ── Pulse ── */
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)} }
+.pulse { animation: pulse 1.8s infinite; }
+
+/* ── Clock ── */
+#clock { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; color: #e2e8f0; letter-spacing: .06em; }
+#clockDate { font-size: 11px; color: #475569; font-weight: 600; text-align: right; line-height: 1.2; }
+
+/* ── Shift header ── */
+.shift-span {
+  font-size: 10px; font-weight: 900; text-transform: uppercase;
+  letter-spacing: .1em; text-align: center; padding: 3px 0;
+  border-top: 2px solid;
+}
+.shift-morning   { background: #1e3a5f33; color: #93c5fd; border-color: #2563eb; }
+.shift-afternoon { background: #3b1f5e33; color: #c4b5fd; border-color: #7c3aed; }
+.shift-evening   { background: #1c3a2e33; color: #6ee7b7; border-color: #059669; }
+.shift-night     { background: #1e1b4b33; color: #a5b4fc; border-color: #4338ca; }
+
+/* ── Trend arrows ── */
+.trend-up   { color: #4ade80; }
+.trend-down { color: #f87171; }
+.trend-flat { color: #64748b; }
+
+/* ── Day-wise chart ── */
+#dayChartWrap { position: relative; flex:1; min-height: 0; padding: 8px 10px; }
+
+/* ── Kiosk ── */
+body.kiosk #sidebar,
+body.kiosk #topBar { display: none !important; }
+body.kiosk #panelGrid { padding: 4px; gap: 4px; }
+.kiosk-exit {
+  display: none; position: fixed; top: 8px; right: 8px; z-index: 9999;
+  background: #1e293b; border: 1px solid #475569; color: #fff;
+  font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 8px;
+  cursor: pointer; align-items: center; gap: 6px;
+}
+body.kiosk .kiosk-exit { display: flex !important; }
+
+/* ── Tooltip ── */
+.has-tooltip { position: relative; cursor: help; }
+.has-tooltip:hover::after {
+  content: attr(data-tip);
+  position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+  background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
+  font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+  white-space: nowrap; z-index: 100; pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     SIDEBAR
+══════════════════════════════════════════════ -->
+<nav id="sidebar">
+  <!-- Logo -->
+  <div style="padding:12px 14px;border-bottom:1px solid #1e293b;display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <div style="width:32px;height:32px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    </div>
+    <div class="sb-logo-text">
+      <div style="font-size:14px;font-weight:900;color:#e2e8f0;line-height:1.1;">VVDN</div>
+      <div style="font-size:10px;font-weight:600;color:#475569;letter-spacing:.06em;">TECHNOLOGIES</div>
+    </div>
+  </div>
+
+  <!-- Collapse toggle -->
+  <div id="sidebarToggleBtn" onclick="toggleSidebar()" class="sb-item" style="margin:8px 6px 4px;border:1px dashed #1e293b;">
+    <svg id="sbToggleIcon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0;"><path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+    <span class="sb-label">Collapse Menu</span>
+  </div>
+
+  <!-- Nav -->
+  <div style="flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:12px;">
+    <div class="sb-section-title">Main</div>
+    <div class="sb-item active">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span class="sb-label">Command Center</span>
+    </div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      <span class="sb-label">Dashboard</span>
+    </div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="sb-label">Report</span>
+    </div>
+    <div class="sb-section-title">Tools</div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+      <span class="sb-label">MSL Baking</span>
+    </div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M4.93 4.93l1.41 1.41M18.66 18.66l1.41 1.41M1 12h3m17 0h-3M12 1v3m0 17v-3"/></svg>
+      <span class="sb-label">Solder Paste</span>
+    </div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      <span class="sb-label">Hipot Testing</span>
+    </div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+      <span class="sb-label">Tool Processing</span>
+    </div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4"/></svg>
+      <span class="sb-label">Wave Pallet</span>
+    </div>
+    <div class="sb-section-title">Print Services</div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm1-4h.01"/></svg>
+      <span class="sb-label">Label Printing</span>
+    </div>
+    <div class="sb-item">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      <span class="sb-label">Upload Data</span>
+    </div>
+  </div>
+
+  <!-- Station info at bottom -->
+  <div style="padding:10px 12px;border-top:1px solid #1e293b;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="pulse" style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span>
+      <div class="sb-label" style="font-size:11px;font-weight:700;color:#64748b;line-height:1.3;">
+        <div style="color:#94a3b8;">NLTI_STMP_64</div>
+        <div style="font-size:10px;">Station Online</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════════════ -->
+<div id="main">
+
+  <!-- TOP BAR -->
+  <div id="topBar">
+    <!-- Left: title + version -->
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <span style="background:#1d4ed8;color:#fff;font-size:10px;font-weight:900;letter-spacing:.1em;padding:3px 8px;border-radius:6px;">v4.0</span>
+      <span style="font-size:15px;font-weight:900;color:#f1f5f9;letter-spacing:.02em;">Management Command Center</span>
+    </div>
+
+    <!-- Global filters: Project + Product -->
+    <div style="display:flex;align-items:center;gap:8px;margin-left:16px;">
+      <span style="font-size:10px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;">Global →</span>
+      <div style="display:flex;flex-direction:column;gap:1px;">
+        <label style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;">Project</label>
+        <select id="gProject" class="ctrl-select" onchange="onGlobalFilterChange()">
+          <option>ALNI_IDU</option>
+          <option>MBMP_LINE2</option>
+          <option>PCBA_PROJ3</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1px;">
+        <label style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;">Product</label>
+        <select id="gProduct" class="ctrl-select" onchange="onGlobalFilterChange()">
+          <option>701-1-04751</option>
+          <option>701-1-05420</option>
+          <option>701-1-06300</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1px;">
+        <label style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;">Line</label>
+        <select id="gLine" class="ctrl-select" onchange="onGlobalFilterChange()">
+          <option>Main Assembly Line Alpha</option>
+          <option>Assembly Line Beta</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Global KPI badges -->
+    <div style="display:flex;align-items:center;gap:6px;margin-left:12px;">
+      <div class="kpi-badge" style="border-left:3px solid #22c55e;">
+        <div class="kv" id="kpiOverallYield" style="color:#4ade80;">96.8%</div>
+        <div class="kl">Overall FPY</div>
+      </div>
+      <div class="kpi-badge" style="border-left:3px solid #3b82f6;">
+        <div class="kv" id="kpiTotalPass" style="color:#60a5fa;">14,820</div>
+        <div class="kl">Total Pass</div>
+      </div>
+      <div class="kpi-badge" style="border-left:3px solid #f87171;">
+        <div class="kv" id="kpiTotalFail" style="color:#f87171;">482</div>
+        <div class="kl">Total Fail</div>
+      </div>
+      <div class="kpi-badge" style="border-left:3px solid #f59e0b;">
+        <div class="kv" id="kpiWipCount" style="color:#fbbf24;">31</div>
+        <div class="kl">WIP Count</div>
+      </div>
+      <div class="kpi-badge" style="border-left:3px solid #a78bfa;">
+        <div class="kv" id="kpiRTY" style="color:#c4b5fd;">8.36</div>
+        <div class="kl">RTY Score</div>
+      </div>
+    </div>
+
+    <!-- Spacer -->
+    <div style="flex:1;"></div>
+
+    <!-- Right: clock + kiosk -->
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <div>
+        <div id="clock">--:--:--</div>
+        <div id="clockDate">Loading...</div>
+      </div>
+      <button onclick="toggleKiosk()" class="btn-icon" title="Presentation Mode" style="width:36px;height:36px;">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+      </button>
+      <div style="display:flex;align-items:center;gap:5px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:4px 10px;">
+        <span class="pulse" style="width:6px;height:6px;border-radius:50%;background:#22c55e;"></span>
+        <span style="font-size:11px;font-weight:700;color:#22c55e;">LIVE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL GRID -->
+  <div id="panelGrid">
+
+    <!-- ╔═════════════════════════════╗
+         ║  PANEL 1: HOUR-WISE        ║
+         ╚═════════════════════════════╝ -->
+    <div class="panel" id="panel-hourwise">
+      <!-- Header -->
+      <div class="panel-header">
+        <div class="panel-title" style="color:#60a5fa;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          Hour-Wise Production Matrix
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="width:8px;height:8px;border-radius:2px;background:#166534;"></span>
+            <span style="font-size:10px;color:#6ee7b7;font-weight:600;" id="hw-legend-pass">≥150</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="width:8px;height:8px;border-radius:2px;background:#92400e;"></span>
+            <span style="font-size:10px;color:#fbbf24;font-weight:600;" id="hw-legend-warn">≥128</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="width:8px;height:8px;border-radius:2px;background:#7f1d1d;"></span>
+            <span style="font-size:10px;color:#fca5a5;font-weight:600;">Critical</span>
+          </div>
+          <button onclick="togglePanelFilter('hw-filter')" class="btn-icon" title="Panel Filters">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Panel filter bar -->
+      <div class="pf-bar" id="hw-filter" style="display:none;">
+        <span class="pf-label">Hour-Wise:</span>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">Work Order</label>
+          <select class="ctrl-select"><option>All Work Orders</option><option>WO-2026-001</option></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">Date</label>
+          <input type="date" value="2026-06-19" class="ctrl-select" style="width:130px;"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">Target/hr</label>
+          <input id="hwTarget" type="number" value="150" min="1" max="999" class="ctrl-input" oninput="onHwTargetChange()"/>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:4px;">
+          <button class="btn-pill active" onclick="setHwView('table',this)">Table</button>
+          <button class="btn-pill" onclick="setHwView('chart',this)">Chart</button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="panel-body" id="hw-body">
+        <table class="matrix-table">
+          <thead id="hw-thead"></thead>
+          <tbody id="hw-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ╔═════════════════════════════╗
+         ║  PANEL 2: DAY-WISE         ║
+         ╚═════════════════════════════╝ -->
+    <div class="panel" id="panel-daywise">
+      <div class="panel-header">
+        <div class="panel-title" style="color:#a78bfa;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          Day-Wise Production Matrix
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="font-size:10px;font-weight:700;color:#64748b;" id="dw-date-range">18–19 Jun 2026</div>
+          <button onclick="togglePanelFilter('dw-filter')" class="btn-icon" title="Panel Filters">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="pf-bar" id="dw-filter" style="display:none;">
+        <span class="pf-label">Day-Wise:</span>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">Start Date</label>
+          <input type="date" value="2026-06-18" class="ctrl-select" style="width:130px;"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">End Date</label>
+          <input type="date" value="2026-06-19" class="ctrl-select" style="width:130px;"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">Daily Target</label>
+          <input id="dwTarget" type="number" value="2500" min="1" class="ctrl-input"/>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:4px;">
+          <button class="btn-pill active" onclick="setDwView('table',this)">Table</button>
+          <button class="btn-pill" onclick="setDwView('chart',this)">Chart</button>
+        </div>
+      </div>
+
+      <div class="panel-body" id="dw-body">
+        <table class="matrix-table">
+          <thead id="dw-thead"></thead>
+          <tbody id="dw-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ╔═════════════════════════════════╗
+         ║  PANEL 3: STAGE QUALITY       ║
+         ╚═════════════════════════════════╝ -->
+    <div class="panel" id="panel-quality">
+      <div class="panel-header">
+        <div class="panel-title" style="color:#34d399;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Stage-Wise Quality Summary
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="background:#052e16;border:1px solid #166534;color:#4ade80;font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;">
+            Overall FPY: <span id="overallFPY">93.92</span>%
+          </span>
+          <span style="background:#1e1b4b;border:1px solid #4338ca;color:#a5b4fc;font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;">
+            RTY: <span id="overallRTY">8.36</span>
+          </span>
+          <button onclick="togglePanelFilter('sq-filter')" class="btn-icon" title="Panel Filters">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="pf-bar" id="sq-filter" style="display:none;">
+        <span class="pf-label">Quality:</span>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">Date Range</label>
+          <input type="date" value="2026-06-19" class="ctrl-select" style="width:130px;"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">FPY Alert Below</label>
+          <div style="position:relative;">
+            <input id="fpyAlertThreshold" type="number" value="95" min="1" max="100" class="ctrl-input"/>
+          </div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:4px;">
+          <button class="btn-pill active">All Stages</button>
+          <button class="btn-pill">Failed Only</button>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <table class="q-table">
+          <thead>
+            <tr>
+              <th style="text-align:left;">Stage</th>
+              <th>Tested</th>
+              <th>Pass</th>
+              <th>Fail</th>
+              <th>FPY %</th>
+              <th>SPY %</th>
+              <th>Under Debug</th>
+            </tr>
+          </thead>
+          <tbody id="quality-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ╔═════════════════════════════╗
+         ║  PANEL 4: WIP REPORT       ║
+         ╚═════════════════════════════╝ -->
+    <div class="panel" id="panel-wip">
+      <div class="panel-header">
+        <div class="panel-title" style="color:#fb923c;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          WIP Report
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="background:#1c1100;border:1px solid #92400e;color:#fbbf24;font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;">
+            Total WIP: <span id="totalWIP">31</span>
+          </span>
+          <button onclick="togglePanelFilter('wip-filter')" class="btn-icon" title="Panel Filters">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="pf-bar" id="wip-filter" style="display:none;">
+        <span class="pf-label">WIP:</span>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">Show Only</label>
+          <select class="ctrl-select">
+            <option>All Stages</option>
+            <option>WIP > 0 Only</option>
+            <option>With Failures</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <label style="font-size:9px;font-weight:700;color:#475569;">WIP Alert Above</label>
+          <input type="number" value="5" min="0" class="ctrl-input"/>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn-pill" style="gap:6px;">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <table class="wip-table">
+          <thead>
+            <tr>
+              <th style="text-align:left;">Stage</th>
+              <th>Total</th>
+              <th>Pass</th>
+              <th>Fail</th>
+              <th>Debug</th>
+              <th>Debug Pass</th>
+              <th>Rework Done</th>
+              <th>WIP w/ Prev Pass</th>
+              <th>WIP Count</th>
+            </tr>
+          </thead>
+          <tbody id="wip-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- end panelGrid -->
+</div><!-- end main -->
+
+<!-- Kiosk exit -->
+<button class="kiosk-exit" onclick="toggleKiosk()">
+  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+  Exit Presentation
+</button>
+
+<!-- ══════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════ -->
+<script>
+// ═══════════════════════════════
+// DATA
+// ═══════════════════════════════
+const stageColors = {
+  "PCB loader bottom":        "#3b82f6",
+  "SPI Bottom":               "#8b5cf6",
+  "Pre AOI Bottom":           "#06b6d4",
+  "AOI Bottom":               "#f59e0b",
+  "PCB loader top":           "#10b981",
+  "SPI Top":                  "#f97316",
+  "Pre AOI Top":              "#ec4899",
+  "AOI Top":                  "#a3e635",
+  "SMT Visual Inspection":    "#e879f9",
+  "EOL QQC":                  "#38bdf8",
+  "X Ray":                    "#fb7185",
+  "Functional FAI":           "#34d399",
+  "PCBA VI":                  "#fbbf24",
+  "Pre Wave VI":              "#a78bfa",
+  "MAC ID and PCBA QR Binding":"#f472b6",
+  "PT1":                      "#6ee7b7",
+};
+
+// Hour-wise data (19 Jun 2026, hours 06–10)
+const hwHours = [
+  { label:'06:00', shift:'Morning' },
+  { label:'07:00', shift:'Morning' },
+  { label:'08:00', shift:'Morning' },
+  { label:'09:00', shift:'Morning' },
+  { label:'10:00', shift:'Morning' },
+];
+const hwData = {
+  "PCB loader bottom":        { pass:[198,2,20,178,258],  fail:[0,0,0,0,0]    },
+  "SPI Bottom":               { pass:[92,129,112,96,112], fail:[0,0,0,0,0]    },
+  "Pre AOI Bottom":           { pass:[84,129,112,96,112], fail:[0,0,0,0,0]    },
+  "AOI Bottom":               { pass:[41,149,106,94,119], fail:[19,1,4,3,2]   },
+  "PCB loader top":           { pass:[130,126,197,154,118],fail:[0,0,0,0,0]   },
+  "SPI Top":                  { pass:[128,144,174,108,62], fail:[0,0,0,0,0]   },
+  "Pre AOI Top":              { pass:[124,150,170,108,46], fail:[0,0,0,0,0]   },
+  "AOI Top":                  { pass:[153,159,174,160,28], fail:[0,6,6,4,2]   },
+  "SMT Visual Inspection":    { pass:[30,250,73,240,126],  fail:[0,0,0,0,0]   },
+  "EOL QQC":                  { pass:[2,12,4,11,6],        fail:[0,0,0,0,0]   },
+  "X Ray":                    { pass:[2,12,4,12,5],        fail:[0,0,0,0,0]   },
+  "Functional FAI":           { pass:[1,2,1,2,2],          fail:[0,0,0,0,0]   },
+  "PCBA VI":                  { pass:[262,270,181,256,199],fail:[0,0,0,0,0]   },
+  "Pre Wave VI":              { pass:[220,230,199,287,217],fail:[0,0,0,0,0]   },
+  "MAC ID and PCBA QR Binding":{ pass:[73,107,71,118,100], fail:[0,0,0,0,0]   },
+  "PT1":                      { pass:[61,102,60,113,89],   fail:[0,11,1,1,5]  },
+};
+const CURRENT_HOUR_IDX = 4; // 10:00 = live
+
+// Day-wise data
+const dwDays = [
+  { label:'18 Jun', date:'18 Jun 2026' },
+  { label:'19 Jun', date:'19 Jun 2026' },
+];
+const dwData = {
+  "PCB loader bottom":        { pass:[2239,673],  fail:[0,0]  },
+  "SPI Bottom":               { pass:[1563,1113], fail:[0,0]  },
+  "Pre AOI Bottom":           { pass:[1555,1116], fail:[0,1]  },
+  "AOI Bottom":               { pass:[1355,1292], fail:[0,1]  },
+  "PCB loader top":           { pass:[590,1307],  fail:[0,0]  },
+  "SPI Top":                  { pass:[713,1168],  fail:[1,0]  },
+  "Pre AOI Top":              { pass:[719,1145],  fail:[0,0]  },
+  "AOI Top":                  { pass:[752,1125],  fail:[2,2]  },
+  "SMT Visual Inspection":    { pass:[1086,939],  fail:[0,0]  },
+  "EOL QQC":                  { pass:[57,46],     fail:[0,0]  },
+  "X Ray":                    { pass:[57,45],     fail:[0,0]  },
+  "Functional FAI":           { pass:[12,10],     fail:[0,0]  },
+  "PCBA VI":                  { pass:[979,1322],  fail:[0,0]  },
+  "Pre Wave VI":              { pass:[1025,1301], fail:[0,0]  },
+  "MAC ID and PCBA QR Binding":{ pass:[1128,1203],fail:[0,0]  },
+  "PT1":                      { pass:[801,624],   fail:[18,8] },
+};
+
+// Quality data
+const qualityData = [
+  { stage:"PCB loader bottom",        tested:54652, pass:54652, fail:0,   fpy:99.99, spy:100.00, debug:0 },
+  { stage:"SPI Bottom",               tested:54710, pass:54684, fail:26,  fpy:99.82, spy:99.95,  debug:0 },
+  { stage:"Pre AOI Bottom",           tested:54770, pass:54754, fail:16,  fpy:97.82, spy:99.97,  debug:0 },
+  { stage:"AOI Bottom",               tested:55413, pass:54944, fail:469, fpy:68.18, spy:99.15,  debug:0 },
+  { stage:"PCB loader top",           tested:55133, pass:55133, fail:0,   fpy:100.0, spy:100.00, debug:0 },
+  { stage:"SPI Top",                  tested:55354, pass:55172, fail:182, fpy:93.28, spy:99.67,  debug:0 },
+  { stage:"Pre AOI Top",              tested:55220, pass:55196, fail:24,  fpy:95.56, spy:99.96,  debug:0 },
+  { stage:"AOI Top",                  tested:55942, pass:55298, fail:644, fpy:31.16, spy:98.85,  debug:0 },
+  { stage:"SMT Visual Inspection",    tested:53533, pass:53533, fail:0,   fpy:99.99, spy:100.00, debug:0 },
+  { stage:"EOL QQC",                  tested:2677,  pass:2677,  fail:0,   fpy:100.0, spy:100.00, debug:0 },
+  { stage:"X Ray",                    tested:2676,  pass:2676,  fail:0,   fpy:99.96, spy:100.00, debug:0 },
+  { stage:"Functional FAI",           tested:2677,  pass:2677,  fail:0,   fpy:100.0, spy:100.00, debug:0 },
+  { stage:"PCBA VI",                  tested:2500,  pass:2498,  fail:2,   fpy:97.10, spy:99.92,  debug:0 },
+  { stage:"Pre Wave VI",              tested:2326,  pass:2326,  fail:0,   fpy:99.96, spy:100.00, debug:0 },
+  { stage:"MAC ID and PCBA QR Binding",tested:2331, pass:2331,  fail:0,   fpy:100.0, spy:100.00, debug:0 },
+  { stage:"PT1",                      tested:1870,  pass:1852,  fail:18,  fpy:89.4,  spy:99.04,  debug:2 },
+];
+
+// WIP data
+const wipData = [
+  { stage:"PCB loader bottom",        total:93825, pass:93825, fail:0, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"SPI Bottom",               total:93868, pass:93615, fail:1, debug:0, debugPass:0, rework:0,   prevPass:253, wip:1  },
+  { stage:"Pre AOI Bottom",           total:93658, pass:93651, fail:0, debug:0, debugPass:1, rework:0,   prevPass:7,   wip:1  },
+  { stage:"AOI Bottom",               total:94018, pass:94007, fail:8, debug:0, debugPass:0, rework:3,   prevPass:11,  wip:11 },
+  { stage:"PCB loader top",           total:94821, pass:94636, fail:0, debug:0, debugPass:0, rework:0,   prevPass:185, wip:0  },
+  { stage:"SPI Top",                  total:94942, pass:94850, fail:6, debug:0, debugPass:0, rework:1,   prevPass:92,  wip:7  },
+  { stage:"Pre AOI Top",              total:94860, pass:94840, fail:2, debug:0, debugPass:0, rework:0,   prevPass:18,  wip:0  },
+  { stage:"AOI Top",                  total:95200, pass:95108, fail:14,debug:0, debugPass:0, rework:2,   prevPass:78,  wip:4  },
+  { stage:"SMT Visual Inspection",    total:53533, pass:53533, fail:0, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"EOL QQC",                  total:2677,  pass:2677,  fail:0, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"X Ray",                    total:2676,  pass:2676,  fail:0, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"Functional FAI",           total:2677,  pass:2677,  fail:0, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"PCBA VI",                  total:2500,  pass:2498,  fail:2, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"Pre Wave VI",              total:2326,  pass:2326,  fail:0, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"MAC ID and PCBA QR Binding",total:2331, pass:2331,  fail:0, debug:0, debugPass:0, rework:0,   prevPass:0,   wip:0  },
+  { stage:"PT1",                      total:1870,  pass:1852,  fail:18,debug:0, debugPass:0, rework:5,   prevPass:8,   wip:7  },
+];
+
+// ═══════════════════════════════
+// STATE
+// ═══════════════════════════════
+let hwTarget = 150;
+let sidebarCollapsed = false;
+
+// ═══════════════════════════════
+// INIT
+// ═══════════════════════════════
+window.onload = function() {
+  startClock();
+  buildHourWise();
+  buildDayWise();
+  buildQuality();
+  buildWIP();
+};
+
+// ═══════════════════════════════
+// CLOCK
+// ═══════════════════════════════
+function startClock() {
+  function tick() {
+    const n = new Date();
+    const pad = v => String(v).padStart(2,'0');
+    document.getElementById('clock').textContent = `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+    const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    document.getElementById('clockDate').textContent = `${days[n.getDay()]} ${n.getDate()} ${months[n.getMonth()]} ${n.getFullYear()}`;
+  }
+  tick(); setInterval(tick, 1000);
+}
+
+// ═══════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  const sb = document.getElementById('sidebar');
+  const icon = document.getElementById('sbToggleIcon');
+  sb.classList.toggle('collapsed', sidebarCollapsed);
+  icon.innerHTML = sidebarCollapsed
+    ? '<path d="M13 5l7 7-7 7M5 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>'
+    : '<path d="M11 19l-7-7 7-7m8 14l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/>';
+}
+
+// ═══════════════════════════════
+// PANEL FILTERS
+// ═══════════════════════════════
+function togglePanelFilter(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+}
+
+// ═══════════════════════════════
+// GLOBAL FILTER CHANGE
+// ═══════════════════════════════
+function onGlobalFilterChange() {
+  // In production this would re-fetch data; for demo it just re-renders
+  buildHourWise(); buildDayWise(); buildQuality(); buildWIP();
+}
+
+// ═══════════════════════════════
+// HOUR-WISE TARGET
+// ═══════════════════════════════
+function onHwTargetChange() {
+  const v = parseInt(document.getElementById('hwTarget').value);
+  if (isNaN(v) || v < 1) return;
+  hwTarget = v;
+  document.getElementById('hw-legend-pass').textContent = `≥${v}`;
+  document.getElementById('hw-legend-warn').textContent = `≥${Math.floor(v*0.85)}`;
+  buildHourWise();
+}
+
+function hwCellClass(val) {
+  if (val === 0) return 'c-zero';
+  if (val >= hwTarget) return 'c-pass';
+  if (val >= hwTarget * 0.85) return 'c-warn';
+  return 'c-crit';
+}
+
+// ═══════════════════════════════
+// BUILD HOUR-WISE TABLE
+// ═══════════════════════════════
+function buildHourWise() {
+  const thead = document.getElementById('hw-thead');
+  const tbody = document.getElementById('hw-tbody');
+
+  // Shift grouping row
+  const shiftMap = {};
+  hwHours.forEach((h,i) => {
+    if (!shiftMap[h.shift]) shiftMap[h.shift] = { start:i, count:0 };
+    shiftMap[h.shift].count++;
+  });
+  const shiftClasses = { Morning:'shift-morning', Afternoon:'shift-afternoon', Evening:'shift-evening', Night:'shift-night' };
+
+  let sr = `<tr>
+    <th class="stage-th" style="border:none;background:#060e1c;"></th>
+    <th class="total-th" style="border:none;background:#060e1c;"></th>
+    <th style="background:#060e1c;border:none;min-width:44px;"></th>`;
+  hwHours.forEach((h, i) => {
+    const sc = shiftClasses[h.shift] || '';
+    sr += `<th class="shift-span ${sc}" style="border:none;">${i === 0 || hwHours[i-1].shift !== h.shift ? h.shift : ''}</th>`;
+  });
+  sr += '</tr>';
+
+  // Hour row
+  let hr = `<tr>
+    <th class="stage-th">Manufacturing Stage</th>
+    <th class="total-th" style="color:#60a5fa;">Total Summary</th>
+    <th style="min-width:44px;font-size:10px;">Trend</th>`;
+  hwHours.forEach((h,i) => {
+    const isCur = i === CURRENT_HOUR_IDX;
+    hr += `<th class="${isCur ? 'current-th' : ''}" style="${isCur ? '' : ''}">
+      <div style="font-size:14px;font-weight:900;">${h.label}</div>
+      ${isCur ? `<div style="font-size:9px;color:#93c5fd;font-weight:800;letter-spacing:.06em;">▶ LIVE</div>` : `<div style="font-size:9px;color:#475569;">–${h.label.replace(':00',':59')}</div>`}
+    </th>`;
+  });
+  hr += '</tr>';
+  thead.innerHTML = sr + hr;
+
+  // Body
+  let rows = '';
+  Object.keys(hwData).forEach(stage => {
+    const d = hwData[stage];
+    const totalPass = d.pass.reduce((a,b)=>a+b,0);
+    const totalFail = d.fail.reduce((a,b)=>a+b,0);
+    const accent = stageColors[stage] || '#64748b';
+
+    // Trend
+    const nonZero = d.pass.filter(v=>v>0);
+    let tArrow = '→', tCls = 'trend-flat';
+    if (nonZero.length >= 2) {
+      const delta = nonZero[nonZero.length-1] - nonZero[0];
+      if (delta > 10)  { tArrow = '↑'; tCls = 'trend-up'; }
+      else if (delta < -10) { tArrow = '↓'; tCls = 'trend-down'; }
+    }
+
+    let cells = '';
+    d.pass.forEach((pv, i) => {
+      const fv = d.fail[i];
+      const cc = hwCellClass(pv);
+      const isCur = i === CURRENT_HOUR_IDX;
+      const curStyle = isCur ? 'box-shadow:inset 0 0 0 2px #3b82f6;' : '';
+      if (pv === 0 && fv === 0) {
+        cells += `<td class="c-zero" style="${curStyle}"><div class="cell-inner" style="opacity:.3;">—</div></td>`;
+      } else {
+        cells += `<td class="${cc}" style="${curStyle}"><div class="cell-inner"><div class="cell-pass-num">${pv}</div>${fv>0?`<div class="cell-fail-num">${fv} FAIL</div>`:''}</div></td>`;
+      }
+    });
+
+    rows += `<tr>
+      <td class="stage-td" style="border-left-color:${accent};">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${accent};flex-shrink:0;"></span>
+          ${stage}
+        </div>
+      </td>
+      <td class="total-td">
+        <div class="cell-inner">
+          <div style="font-size:15px;font-weight:900;color:#93c5fd;">${totalPass.toLocaleString()}</div>
+          <div style="font-size:10px;font-weight:700;color:#f87171;">${totalFail>0?totalFail+' Fail':'0 Fail'}</div>
+        </div>
+      </td>
+      <td style="background:#0d1b2e;">
+        <div class="cell-inner ${tCls}" style="font-size:18px;font-weight:900;">${tArrow}</div>
+      </td>
+      ${cells}
+    </tr>`;
+  });
+  tbody.innerHTML = rows;
+}
+
+// ═══════════════════════════════
+// BUILD DAY-WISE TABLE
+// ═══════════════════════════════
+function buildDayWise() {
+  const thead = document.getElementById('dw-thead');
+  const tbody = document.getElementById('dw-tbody');
+
+  let hr = `<tr>
+    <th class="stage-th">Manufacturing Stage</th>
+    <th class="total-th" style="color:#a78bfa;">Total Summary</th>
+    <th style="min-width:44px;font-size:10px;">Trend</th>`;
+  dwDays.forEach(d => {
+    hr += `<th><div style="font-size:13px;font-weight:900;">${d.label}</div><div style="font-size:10px;color:#475569;">${d.date}</div></th>`;
+  });
+  hr += '</tr>';
+  thead.innerHTML = hr;
+
+  let rows = '';
+  Object.keys(dwData).forEach(stage => {
+    const d = dwData[stage];
+    const totalPass = d.pass.reduce((a,b)=>a+b,0);
+    const totalFail = d.fail.reduce((a,b)=>a+b,0);
+    const accent = stageColors[stage] || '#64748b';
+
+    // Trend
+    const delta = d.pass.length >= 2 ? d.pass[d.pass.length-1] - d.pass[0] : 0;
+    let tArrow = '→', tCls = 'trend-flat';
+    if (delta > 50)  { tArrow = '↑'; tCls = 'trend-up'; }
+    else if (delta < -50) { tArrow = '↓'; tCls = 'trend-down'; }
+
+    let cells = '';
+    d.pass.forEach((pv, i) => {
+      const fv = d.fail[i];
+      // For day-wise use 2500 as default daily target threshold
+      const dwT = parseInt(document.getElementById('dwTarget')?.value) || 2500;
+      let cc = 'c-zero';
+      if (pv > 0) {
+        if (pv >= dwT) cc = 'c-pass';
+        else if (pv >= dwT * 0.85) cc = 'c-warn';
+        else cc = 'c-crit';
+      }
+      cells += `<td class="${cc}" style="min-width:120px;">
+        <div class="cell-inner">
+          <div class="cell-pass-num">${pv > 0 ? pv.toLocaleString() : '—'}</div>
+          ${fv > 0 ? `<div class="cell-fail-num">${fv} FAIL</div>` : ''}
+        </div>
+      </td>`;
+    });
+
+    rows += `<tr>
+      <td class="stage-td" style="border-left-color:${accent};">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${accent};flex-shrink:0;"></span>
+          ${stage}
+        </div>
+      </td>
+      <td class="total-td">
+        <div class="cell-inner">
+          <div style="font-size:15px;font-weight:900;color:#c4b5fd;">${totalPass.toLocaleString()}</div>
+          <div style="font-size:10px;font-weight:700;color:#f87171;">${totalFail>0?totalFail+' Fail':'0 Fail'}</div>
+        </div>
+      </td>
+      <td style="background:#0d1b2e;">
+        <div class="cell-inner ${tCls}" style="font-size:18px;font-weight:900;">${tArrow}</div>
+      </td>
+      ${cells}
+    </tr>`;
+  });
+  tbody.innerHTML = rows;
+}
+
+// ═══════════════════════════════
+// BUILD QUALITY TABLE
+// ═══════════════════════════════
+function buildQuality() {
+  const tbody = document.getElementById('quality-tbody');
+  const fpyAlert = parseFloat(document.getElementById('fpyAlertThreshold')?.value) || 95;
+
+  let rows = '';
+  qualityData.forEach(q => {
+    const accent = stageColors[q.stage] || '#64748b';
+    let fpyCls = 'fpy-high';
+    if (q.fpy < fpyAlert) fpyCls = q.fpy < 70 ? 'fpy-low' : 'fpy-mid';
+    const fpyBar = Math.min(100, q.fpy);
+    const fpyBarColor = q.fpy >= fpyAlert ? '#166534' : q.fpy >= 70 ? '#92400e' : '#7f1d1d';
+
+    rows += `<tr>
+      <td style="border-left:3px solid ${accent};">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="width:7px;height:7px;border-radius:50%;background:${accent};flex-shrink:0;"></span>
+          ${q.stage}
+        </div>
+      </td>
+      <td>${q.tested.toLocaleString()}</td>
+      <td style="color:#4ade80;font-weight:800;">${q.pass.toLocaleString()}</td>
+      <td style="color:${q.fail>0?'#f87171':'#475569'};font-weight:800;">${q.fail.toLocaleString()}</td>
+      <td>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+          <span class="${fpyCls}" style="font-weight:900;font-size:13px;">${q.fpy.toFixed(2)}%</span>
+          <div style="width:60px;height:4px;background:#1e293b;border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${fpyBar}%;background:${fpyBarColor};border-radius:2px;transition:width .4s;"></div>
+          </div>
+        </div>
+      </td>
+      <td class="${q.spy>=99?'fpy-high':q.spy>=90?'fpy-mid':'fpy-low'}" style="font-weight:800;">${q.spy.toFixed(2)}%</td>
+      <td>
+        ${q.debug > 0
+          ? `<span class="wip-badge" style="background:#92400e;color:#fef3c7;">${q.debug}</span>`
+          : `<span style="color:#334155;font-size:12px;">0</span>`}
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = rows;
+
+  // Update global FPY
+  const avgFpy = (qualityData.reduce((s,q)=>s+q.fpy,0)/qualityData.length).toFixed(2);
+  document.getElementById('overallFPY').textContent = avgFpy;
+}
+
+// ═══════════════════════════════
+// BUILD WIP TABLE
+// ═══════════════════════════════
+function buildWIP() {
+  const tbody = document.getElementById('wip-tbody');
+  const totalWip = wipData.reduce((s,w)=>s+w.wip,0);
+  document.getElementById('totalWIP').textContent = totalWip;
+  document.getElementById('kpiWipCount').textContent = totalWip;
+
+  let rows = '';
+  wipData.forEach(w => {
+    const accent = stageColors[w.stage] || '#64748b';
+    const wipColor = w.wip > 10 ? '#dc2626' : w.wip > 3 ? '#d97706' : w.wip > 0 ? '#22c55e' : null;
+    const wipBadgeBg = w.wip > 10 ? '#7f1d1d' : w.wip > 3 ? '#92400e' : '#052e16';
+    const wipBadgeColor = w.wip > 10 ? '#fca5a5' : w.wip > 3 ? '#fef3c7' : '#bbf7d0';
+
+    rows += `<tr>
+      <td style="border-left:3px solid ${accent};">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="width:7px;height:7px;border-radius:50%;background:${accent};flex-shrink:0;"></span>
+          ${w.stage}
+        </div>
+      </td>
+      <td style="color:#94a3b8;">${w.total.toLocaleString()}</td>
+      <td style="color:#4ade80;font-weight:700;">${w.pass.toLocaleString()}</td>
+      <td style="color:${w.fail>0?'#f87171':'#475569'};font-weight:${w.fail>0?800:500};">${w.fail}</td>
+      <td style="color:${w.debug>0?'#fbbf24':'#475569'};">${w.debug}</td>
+      <td style="color:${w.debugPass>0?'#34d399':'#475569'};">${w.debugPass}</td>
+      <td style="color:${w.rework>0?'#fb923c':'#475569'};">${w.rework}</td>
+      <td style="color:#94a3b8;">${w.prevPass}</td>
+      <td>
+        ${w.wip > 0
+          ? `<span class="wip-badge" style="background:${wipBadgeBg};color:${wipBadgeColor};">${w.wip}</span>`
+          : `<span style="color:#334155;font-size:12px;">0</span>`}
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = rows;
+}
+
+// ═══════════════════════════════
+// VIEW SWITCHERS
+// ═══════════════════════════════
+function setHwView(view, btn) {
+  btn.closest('.pf-bar').querySelectorAll('.btn-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function setDwView(view, btn) {
+  btn.closest('.pf-bar').querySelectorAll('.btn-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ═══════════════════════════════
+// KIOSK MODE
+// ═══════════════════════════════
+function toggleKiosk() {
+  document.body.classList.toggle('kiosk');
+}
+</script>
+</body>
+</html>
